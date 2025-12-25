@@ -1,0 +1,77 @@
+# Python项目常见忽略项
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.installed.cfg
+*.egg
+.Python
+
+# 虚拟环境
+venv/
+.venv/
+env/
+env.local/
+env.*.local/
+
+# IDE配置
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 环境变量文件
+.env
+.env.local
+.env.*.local
+
+# 日志文件
+*.log
+logs/
+
+# 测试和缓存
+.pytest_cache/
+.cache/
+.tox/
+.coverage
+.coverage.*
+nosetests.xml
+pytest.xml
+
+# 构建文件
+build/
+dist/
+*.whl
+*.tar.gz
+
+# 回测系统特定文件
+# 数据文件和临时数据
+*.csv
+*.json
+*.sqlite
+*.db
+
+# 回测结果
+backtest_results/
+output/
+
+# 前端构建文件（如果有）
+frontend/build/
+frontend/node_modules/
+
+# Flask相关
+.flaskenv
+instance/
+
+# OS特定文件
+.DS_Store
+Thumbs.db
+
+# 其他临时文件
+.tmp/
+.temp/
+*.tmp
+*.temp

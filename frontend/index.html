@@ -1,0 +1,1395 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>股票回测系统</title>
+    <!-- Tailwind CSS v3 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <!-- Chart.js Financial Plugin for Candlestick Charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.1.1/dist/chartjs-chart-financial.min.js"></script>
+    <!-- 统一的 Tailwind 配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#1a56db',
+                        secondary: '#e2e8f0',
+                        success: '#10b981',
+                        danger: '#ef4444',
+                        warning: '#f59e0b',
+                        info: '#3b82f6',
+                        light: '#f8fafc',
+                        dark: '#1e293b',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .scrollbar-hide::-webkit-scrollbar {
+                display: none;
+            }
+            .scrollbar-hide {
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+            }
+            .text-shadow {
+                text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .transition-all-300 {
+                transition: all 300ms ease-in-out;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen">
+    <!-- 顶部导航栏 -->
+    <nav class="bg-primary text-white shadow-md">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i class="fa fa-line-chart text-2xl"></i>
+                <h1 class="text-xl font-bold">股票回测系统</h1>
+            </div>
+            <div class="flex items-center space-x-4">
+                <button id="helpBtn" class="px-3 py-1 rounded hover:bg-blue-700 transition-all-300">
+                    <i class="fa fa-question-circle mr-1"></i> 帮助
+                </button>
+                <button id="aboutBtn" class="px-3 py-1 rounded hover:bg-blue-700 transition-all-300">
+                    <i class="fa fa-info-circle mr-1"></i> 关于
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容区域 -->
+    <div class="container mx-auto px-4 py-6">
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <!-- 左侧控制面板 -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-lg shadow-md p-4 mb-6">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">
+                        <i class="fa fa-sliders mr-2 text-primary"></i> 数据设置
+                    </h2>
+                    
+                    <div class="mb-4">
+                        <label for="stockSymbol" class="block text-sm font-medium text-gray-700 mb-1">股票代码</label>
+                        <div class="flex">
+                            <input type="text" id="stockSymbol" placeholder="例如: AAPL, TSLA, 600519.SS" 
+                                class="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                            <button id="getStockData" class="bg-primary text-white px-4 py-2 rounded-r-md hover:bg-blue-700 transition-all-300">
+                                <i class="fa fa-search mr-1"></i> 获取数据
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">日期范围</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label for="startDate" class="block text-xs text-gray-500 mb-1">开始日期</label>
+                                <input type="date" id="startDate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                            </div>
+                            <div>
+                                <label for="endDate" class="block text-xs text-gray-500 mb-1">结束日期</label>
+                                <input type="date" id="endDate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow-md p-4 mb-6">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">
+                        <i class="fa fa-line-chart mr-2 text-primary"></i> 回测设置
+                    </h2>
+                    
+                    <div class="mb-4">
+                        <label for="strategySelect" class="block text-sm font-medium text-gray-700 mb-1">选择策略</label>
+                        <select id="strategySelect" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                            <option value="ma_cross">移动平均线交叉</option>
+                            <option value="rsi">RSI超买超卖</option>
+                            <option value="macd">MACD交叉</option>
+                        </select>
+                    </div>
+                    
+                    <!-- 策略参数设置 - 动态显示 -->
+                    <div id="strategyParams" class="mb-4 space-y-3">
+                        <!-- 移动平均线参数 -->
+                        <div id="maParams">
+                            <div class="mb-3">
+                                <label for="shortPeriod" class="block text-sm font-medium text-gray-700 mb-1">短期均线周期</label>
+                                <input type="range" id="shortPeriod" min="5" max="50" value="10" 
+                                    class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                                <div class="flex justify-between text-xs text-gray-500">
+                                    <span>5</span>
+                                    <span id="shortPeriodValue">10</span>
+                                    <span>50</span>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="longPeriod" class="block text-sm font-medium text-gray-700 mb-1">长期均线周期</label>
+                                <input type="range" id="longPeriod" min="20" max="200" value="50" 
+                                    class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                                <div class="flex justify-between text-xs text-gray-500">
+                                    <span>20</span>
+                                    <span id="longPeriodValue">50</span>
+                                    <span>200</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- RSI参数 (默认隐藏) -->
+                        <div id="rsiParams" class="hidden">
+                            <div class="mb-3">
+                                <label for="rsiPeriod" class="block text-sm font-medium text-gray-700 mb-1">RSI周期</label>
+                                <input type="range" id="rsiPeriod" min="5" max="30" value="14" 
+                                    class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                                <div class="flex justify-between text-xs text-gray-500">
+                                    <span>5</span>
+                                    <span id="rsiPeriodValue">14</span>
+                                    <span>30</span>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="rsiOverbought" class="block text-sm font-medium text-gray-700 mb-1">超买阈值</label>
+                                <input type="range" id="rsiOverbought" min="60" max="90" value="70" 
+                                    class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                                <div class="flex justify-between text-xs text-gray-500">
+                                    <span>60</span>
+                                    <span id="rsiOverboughtValue">70</span>
+                                    <span>90</span>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="rsiOversold" class="block text-sm font-medium text-gray-700 mb-1">超卖阈值</label>
+                                <input type="range" id="rsiOversold" min="10" max="40" value="30" 
+                                    class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                                <div class="flex justify-between text-xs text-gray-500">
+                                    <span>10</span>
+                                    <span id="rsiOversoldValue">30</span>
+                                    <span>40</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- MACD参数 (默认隐藏) -->
+                        <div id="macdParams" class="hidden">
+                            <div class="mb-3">
+                                <label for="macdFastPeriod" class="block text-sm font-medium text-gray-700 mb-1">快线周期</label>
+                                <input type="range" id="macdFastPeriod" min="5" max="20" value="12" 
+                                    class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                                <div class="flex justify-between text-xs text-gray-500">
+                                    <span>5</span>
+                                    <span id="macdFastPeriodValue">12</span>
+                                    <span>20</span>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="macdSlowPeriod" class="block text-sm font-medium text-gray-700 mb-1">慢线周期</label>
+                                <input type="range" id="macdSlowPeriod" min="15" max="35" value="26" 
+                                    class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                                <div class="flex justify-between text-xs text-gray-500">
+                                    <span>15</span>
+                                    <span id="macdSlowPeriodValue">26</span>
+                                    <span>35</span>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="macdSignalPeriod" class="block text-sm font-medium text-gray-700 mb-1">信号线周期</label>
+                                <input type="range" id="macdSignalPeriod" min="5" max="15" value="9" 
+                                    class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                                <div class="flex justify-between text-xs text-gray-500">
+                                    <span>5</span>
+                                    <span id="macdSignalPeriodValue">9</span>
+                                    <span>15</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="initialCash" class="block text-sm font-medium text-gray-700 mb-1">初始资金</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">¥</span>
+                            <input type="number" id="initialCash" value="100000" min="1000" step="1000"
+                                class="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="commission" class="block text-sm font-medium text-gray-700 mb-1">交易佣金 (%)</label>
+                        <div class="relative">
+                            <input type="number" id="commission" value="0.1" min="0" max="1" step="0.01"
+                                class="w-full pl-3 pr-8 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                            <span class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500">%</span>
+                        </div>
+                    </div>
+                    
+                    <button id="runBacktest" class="w-full bg-primary text-white py-2 rounded-md hover:bg-blue-700 transition-all-300 flex items-center justify-center">
+                        <i class="fa fa-play-circle mr-2"></i> 开始回测
+                    </button>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow-md p-4">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">
+                        <i class="fa fa-lightbulb-o mr-2 text-primary"></i> 使用提示
+                    </h2>
+                    <ul class="text-sm text-gray-600 space-y-2">
+                        <li class="flex items-start">
+                            <i class="fa fa-check-circle text-success mt-0.5 mr-2"></i>
+                            <span>输入股票代码并获取历史数据</span>
+                        </li>
+                        <li class="flex items-start">
+                            <i class="fa fa-check-circle text-success mt-0.5 mr-2"></i>
+                            <span>选择回测策略并调整参数</span>
+                        </li>
+                        <li class="flex items-start">
+                            <i class="fa fa-check-circle text-success mt-0.5 mr-2"></i>
+                            <span>设置初始资金和交易成本</span>
+                        </li>
+                        <li class="flex items-start">
+                            <i class="fa fa-check-circle text-success mt-0.5 mr-2"></i>
+                            <span>运行回测并查看结果报告</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- 右侧图表和结果区域 -->
+            <div class="lg:col-span-3">
+                <!-- 加载状态 -->
+                <div id="loadingIndicator" class="hidden bg-white rounded-lg shadow-md p-8 text-center">
+                    <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mb-4"></div>
+                    <p class="text-gray-600" id="loadingText">正在获取数据，请稍候...</p>
+                </div>
+                
+                <!-- 错误提示 -->
+                <div id="errorMessage" class="hidden bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                    <div class="flex items-start">
+                        <i class="fa fa-exclamation-circle text-red-500 mt-0.5 mr-2"></i>
+                        <p class="text-red-700" id="errorText"></p>
+                    </div>
+                </div>
+                
+                <!-- 股票信息卡片 -->
+                <div id="stockInfoCard" class="hidden bg-white rounded-lg shadow-md p-4 mb-6">
+                    <div class="flex flex-wrap items-center justify-between">
+                        <div>
+                            <h2 class="text-xl font-bold" id="stockName">Apple Inc.</h2>
+                            <p class="text-gray-500" id="stockSymbolDisplay">AAPL</p>
+                        </div>
+                        <div class="flex items-center space-x-4 mt-2 sm:mt-0">
+                            <div class="text-right">
+                                <p class="text-sm text-gray-500">最新价格</p>
+                                <p class="text-xl font-bold" id="latestPrice">$182.63</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-sm text-gray-500">涨跌幅</p>
+                                <p class="text-xl font-bold text-green-500" id="priceChange">+2.34 (+1.30%)</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 图表区域 -->
+                <div id="chartsContainer" class="hidden">
+                    <!-- 价格图表 -->
+                    <div class="bg-white rounded-lg shadow-md p-4 mb-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-semibold">价格走势</h3>
+                            <div class="flex space-x-2">
+                                <button class="chart-type-btn px-3 py-1 text-sm rounded-md bg-primary text-white" data-type="candlestick">K线图</button>
+                                <button class="chart-type-btn px-3 py-1 text-sm rounded-md bg-gray-200" data-type="line">分时图</button>
+                            </div>
+                        </div>
+                        <div class="h-80">
+                            <canvas id="priceChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- 成交量图表 -->
+                    <div class="bg-white rounded-lg shadow-md p-4 mb-6">
+                        <h3 class="text-lg font-semibold mb-4">成交量</h3>
+                        <div class="h-40">
+                            <canvas id="volumeChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 回测结果区域 -->
+                <div id="backtestResults" class="hidden">
+                    <!-- 回测指标卡片 -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                        <div class="bg-white rounded-lg shadow-md p-4">
+                            <p class="text-sm text-gray-500">总收益率</p>
+                            <p class="text-2xl font-bold text-green-500" id="totalReturn">+32.45%</p>
+                        </div>
+                        <div class="bg-white rounded-lg shadow-md p-4">
+                            <p class="text-sm text-gray-500">年化收益率</p>
+                            <p class="text-2xl font-bold text-green-500" id="annualReturn">+12.34%</p>
+                        </div>
+                        <div class="bg-white rounded-lg shadow-md p-4">
+                            <p class="text-sm text-gray-500">最大回撤</p>
+                            <p class="text-2xl font-bold text-red-500" id="maxDrawdown">-18.76%</p>
+                        </div>
+                        <div class="bg-white rounded-lg shadow-md p-4">
+                            <p class="text-sm text-gray-500">夏普比率</p>
+                            <p class="text-2xl font-bold" id="sharpeRatio">1.87</p>
+                        </div>
+                    </div>
+                    
+                    <!-- 回测详情 -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                        <!-- 收益率曲线 -->
+                        <div class="bg-white rounded-lg shadow-md p-4">
+                            <h3 class="text-lg font-semibold mb-4">收益率曲线</h3>
+                            <div class="h-64">
+                                <canvas id="equityCurveChart"></canvas>
+                            </div>
+                        </div>
+                        
+                        <!-- 交易统计 -->
+                        <div class="bg-white rounded-lg shadow-md p-4">
+                            <h3 class="text-lg font-semibold mb-4">交易统计</h3>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <p class="text-sm text-gray-500">总交易次数</p>
+                                    <p class="text-xl font-bold" id="totalTrades">24</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">胜率</p>
+                                    <p class="text-xl font-bold" id="winRate">62.5%</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">平均盈利</p>
+                                    <p class="text-xl font-bold text-green-500" id="avgProfit">+4.32%</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">平均亏损</p>
+                                    <p class="text-xl font-bold text-red-500" id="avgLoss">-2.18%</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">盈亏比</p>
+                                    <p class="text-xl font-bold" id="profitLossRatio">1.98</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">最大连续盈利</p>
+                                    <p class="text-xl font-bold" id="maxConsecutiveWins">4</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 交易记录表格 -->
+                    <div class="bg-white rounded-lg shadow-md p-4">
+                        <h3 class="text-lg font-semibold mb-4">交易记录</h3>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead>
+                                    <tr>
+                                        <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">日期</th>
+                                        <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">类型</th>
+                                        <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">价格</th>
+                                        <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">数量</th>
+                                        <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">金额</th>
+                                        <th class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">手续费</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tradesTableBody" class="bg-white divide-y divide-gray-200">
+                                    <!-- 交易记录将通过JavaScript动态添加 -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-4 flex justify-center">
+                            <button id="exportResults" class="px-4 py-2 bg-primary text-white rounded-md hover:bg-blue-700 transition-all-300 flex items-center">
+                                <i class="fa fa-download mr-2"></i> 导出报告
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 帮助模态框 -->
+    <div id="helpModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold">使用帮助</h2>
+                    <button id="closeHelpModal" class="text-gray-500 hover:text-gray-700">
+                        <i class="fa fa-times text-xl"></i>
+                    </button>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <h3 class="text-lg font-semibold mb-2">数据获取</h3>
+                        <p class="text-gray-600">在左侧控制面板中输入股票代码，选择日期范围，然后点击"获取数据"按钮。系统支持以下格式的股票代码：</p>
+                        <ul class="list-disc pl-5 mt-2 text-gray-600">
+                            <li>美股：AAPL, MSFT, GOOGL</li>
+                            <li>港股：0700.HK, 0005.HK</li>
+                            <li>A股：600519.SS (沪市), 000858.SZ (深市)</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold mb-2">策略回测</h3>
+                        <p class="text-gray-600">选择回测策略并调整相应参数，设置初始资金和交易佣金，然后点击"开始回测"按钮。系统支持以下策略：</p>
+                        <ul class="list-disc pl-5 mt-2 text-gray-600">
+                            <li><strong>移动平均线交叉</strong>：当短期均线上穿长期均线时买入，下穿时卖出。</li>
+                            <li><strong>RSI超买超卖</strong>：RSI低于超卖阈值时买入，高于超买阈值时卖出。</li>
+                            <li><strong>MACD交叉</strong>：当MACD线上穿信号线时买入，下穿时卖出。</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold mb-2">结果解读</h3>
+                        <p class="text-gray-600">回测完成后，系统会显示以下结果：</p>
+                        <ul class="list-disc pl-5 mt-2 text-gray-600">
+                            <li><strong>总收益率</strong>：回测期间的总收益百分比。</li>
+                            <li><strong>年化收益率</strong>：将总收益率换算为年化收益。</li>
+                            <li><strong>最大回撤</strong>：回测期间的最大亏损幅度。</li>
+                            <li><strong>夏普比率</strong>：投资回报与风险的比值，越高越好。</li>
+                            <li><strong>胜率</strong>：盈利交易次数占总交易次数的百分比。</li>
+                            <li><strong>盈亏比</strong>：平均盈利与平均亏损的比值。</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold mb-2">图表操作</h3>
+                        <p class="text-gray-600">价格图表支持以下操作：</p>
+                        <ul class="list-disc pl-5 mt-2 text-gray-600">
+                            <li>鼠标滚轮：缩放图表</li>
+                            <li>鼠标拖拽：平移图表</li>
+                            <li>点击图例：显示/隐藏指标线</li>
+                            <li>K线图/分时图切换：点击图表上方的按钮</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 关于模态框 -->
+    <div id="aboutModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold">关于系统</h2>
+                    <button id="closeAboutModal" class="text-gray-500 hover:text-gray-700">
+                        <i class="fa fa-times text-xl"></i>
+                    </button>
+                </div>
+                <div class="space-y-4">
+                    <p class="text-gray-600">股票回测系统是一个用于测试和评估交易策略的工具。它允许用户在历史数据上模拟交易，以评估策略的潜在表现。</p>
+                    <p class="text-gray-600">本系统使用以下技术：</p>
+                    <ul class="list-disc pl-5 text-gray-600">
+                        <li>前端：HTML5, CSS3, JavaScript, Tailwind CSS, Chart.js</li>
+                        <li>后端：Python, Flask</li>
+                        <li>数据源：Yahoo Finance</li>
+                    </ul>
+                    <p class="text-gray-600">版本：1.0.0</p>
+                    <p class="text-gray-600">注意：本系统仅用于教育和研究目的，不构成投资建议。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let stockData = null;
+        let backtestResults = null;
+        let priceChart = null;
+        let volumeChart = null;
+        let equityCurveChart = null;
+        let currentChartType = 'candlestick';
+        
+        // DOM元素加载完成后执行
+        document.addEventListener('DOMContentLoaded', function() {
+            // 设置默认日期范围（最近1年）
+            const today = new Date();
+            const oneYearAgo = new Date();
+            oneYearAgo.setFullYear(today.getFullYear() - 1);
+            
+            document.getElementById('endDate').valueAsDate = today;
+            document.getElementById('startDate').valueAsDate = oneYearAgo;
+            
+            // 初始化事件监听器
+            initEventListeners();
+            
+            // 初始化策略参数显示
+            updateStrategyParams();
+        });
+        
+        // 初始化所有事件监听器
+        function initEventListeners() {
+            // 获取股票数据按钮
+            document.getElementById('getStockData').addEventListener('click', function() {
+                const symbol = document.getElementById('stockSymbol').value.trim();
+                if (symbol) {
+                    getStockData(symbol);
+                } else {
+                    showError('请输入有效的股票代码');
+                }
+            });
+            
+            // 回车键触发获取数据
+            document.getElementById('stockSymbol').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    document.getElementById('getStockData').click();
+                }
+            });
+            
+            // 策略选择变化
+            document.getElementById('strategySelect').addEventListener('change', updateStrategyParams);
+            
+            // 移动平均线参数滑块
+            document.getElementById('shortPeriod').addEventListener('input', function() {
+                document.getElementById('shortPeriodValue').textContent = this.value;
+            });
+            
+            document.getElementById('longPeriod').addEventListener('input', function() {
+                document.getElementById('longPeriodValue').textContent = this.value;
+            });
+            
+            // RSI参数滑块
+            document.getElementById('rsiPeriod').addEventListener('input', function() {
+                document.getElementById('rsiPeriodValue').textContent = this.value;
+            });
+            
+            document.getElementById('rsiOverbought').addEventListener('input', function() {
+                document.getElementById('rsiOverboughtValue').textContent = this.value;
+            });
+            
+            document.getElementById('rsiOversold').addEventListener('input', function() {
+                document.getElementById('rsiOversoldValue').textContent = this.value;
+            });
+            
+            // MACD参数滑块
+            document.getElementById('macdFastPeriod').addEventListener('input', function() {
+                document.getElementById('macdFastPeriodValue').textContent = this.value;
+            });
+            
+            document.getElementById('macdSlowPeriod').addEventListener('input', function() {
+                document.getElementById('macdSlowPeriodValue').textContent = this.value;
+            });
+            
+            document.getElementById('macdSignalPeriod').addEventListener('input', function() {
+                document.getElementById('macdSignalPeriodValue').textContent = this.value;
+            });
+            
+            // 开始回测按钮
+            document.getElementById('runBacktest').addEventListener('click', runBacktest);
+            
+            // 图表类型切换按钮
+            document.querySelectorAll('.chart-type-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.chart-type-btn').forEach(b => {
+                        b.classList.remove('bg-primary', 'text-white');
+                        b.classList.add('bg-gray-200');
+                    });
+                    this.classList.remove('bg-gray-200');
+                    this.classList.add('bg-primary', 'text-white');
+                    
+                    currentChartType = this.dataset.type;
+                    if (stockData) {
+                        updateCharts();
+                    }
+                });
+            });
+            
+            // 导出结果按钮
+            document.getElementById('exportResults').addEventListener('click', exportResults);
+            
+            // 帮助和关于按钮
+            document.getElementById('helpBtn').addEventListener('click', function() {
+                document.getElementById('helpModal').classList.remove('hidden');
+            });
+            
+            document.getElementById('closeHelpModal').addEventListener('click', function() {
+                document.getElementById('helpModal').classList.add('hidden');
+            });
+            
+            document.getElementById('aboutBtn').addEventListener('click', function() {
+                document.getElementById('aboutModal').classList.remove('hidden');
+            });
+            
+            document.getElementById('closeAboutModal').addEventListener('click', function() {
+                document.getElementById('aboutModal').classList.add('hidden');
+            });
+            
+            // 点击模态框背景关闭
+            document.getElementById('helpModal').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.classList.add('hidden');
+                }
+            });
+            
+            document.getElementById('aboutModal').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.classList.add('hidden');
+                }
+            });
+        }
+        
+        // 更新策略参数显示
+        function updateStrategyParams() {
+            const strategy = document.getElementById('strategySelect').value;
+            
+            // 隐藏所有参数面板
+            document.getElementById('maParams').classList.add('hidden');
+            document.getElementById('rsiParams').classList.add('hidden');
+            document.getElementById('macdParams').classList.add('hidden');
+            
+            // 显示选中的策略参数
+            if (strategy === 'ma_cross') {
+                document.getElementById('maParams').classList.remove('hidden');
+            } else if (strategy === 'rsi') {
+                document.getElementById('rsiParams').classList.remove('hidden');
+            } else if (strategy === 'macd') {
+                document.getElementById('macdParams').classList.remove('hidden');
+            }
+        }
+        
+        // 获取股票数据
+        function getStockData(symbol) {
+            showLoading('正在获取股票数据，请稍候...');
+            hideError();
+            
+            // 在获取新数据前销毁所有现有图表实例，避免Canvas重用冲突
+            if (priceChart) {
+                priceChart.destroy();
+                priceChart = null;
+            }
+            if (volumeChart) {
+                volumeChart.destroy();
+                volumeChart = null;
+            }
+            if (equityCurveChart) {
+                equityCurveChart.destroy();
+                equityCurveChart = null;
+            }
+            
+            // 重置回测结果，避免与新股票数据冲突
+            backtestResults = null;
+            document.getElementById('backtestResults').classList.add('hidden');
+            
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            // 构建API请求URL（使用相对路径避免跨域问题）
+            const apiUrl = `/api/stock_data?symbol=${symbol}&start_date=${startDate}&end_date=${endDate}`;
+            
+            // 发送API请求
+            fetch(apiUrl, {
+                method: 'GET',
+                mode: 'cors',
+                cache: 'no-cache'
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`API请求失败: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    
+                    stockData = data;
+                    updateStockInfo();
+                    updateCharts();
+                    
+                    // 显示图表容器
+                    document.getElementById('chartsContainer').classList.remove('hidden');
+                    document.getElementById('stockInfoCard').classList.remove('hidden');
+                    
+                    hideLoading();
+                })
+                .catch(error => {
+                    console.error('获取股票数据失败:', error);
+                    // 根据错误类型显示更友好的提示信息
+                    let errorMessage = error.message;
+                    if (errorMessage.includes('无法获取股票')) {
+                        // 直接显示后端返回的具体错误信息
+                        showError(errorMessage);
+                    } else if (errorMessage.includes('API请求失败')) {
+                        showError('网络请求失败，请检查网络连接或稍后重试');
+                    } else {
+                        showError(`获取股票数据失败: ${errorMessage}`);
+                    }
+                    hideLoading();
+                });
+        }
+        
+        // 更新股票信息卡片
+        function updateStockInfo() {
+            if (!stockData || !stockData.meta) return;
+            
+            const meta = stockData.meta;
+            const latestData = stockData.data[stockData.data.length - 1];
+            const prevData = stockData.data[stockData.data.length - 2];
+            
+            document.getElementById('stockName').textContent = meta.name || meta.symbol;
+            document.getElementById('stockSymbolDisplay').textContent = meta.symbol;
+            document.getElementById('latestPrice').textContent = formatPrice(latestData.close);
+            
+            const priceChange = latestData.close - prevData.close;
+            const percentChange = (priceChange / prevData.close) * 100;
+            
+            const priceChangeElement = document.getElementById('priceChange');
+            priceChangeElement.textContent = `${formatPrice(priceChange)} (${percentChange.toFixed(2)}%)`;
+            
+            if (priceChange >= 0) {
+                priceChangeElement.classList.remove('text-red-500');
+                priceChangeElement.classList.add('text-green-500');
+            } else {
+                priceChangeElement.classList.remove('text-green-500');
+                priceChangeElement.classList.add('text-red-500');
+            }
+        }
+        
+        // 更新图表
+        function updateCharts() {
+            if (!stockData || !stockData.data || stockData.data.length === 0) return;
+            
+            // 准备图表数据
+            const dates = stockData.data.map(item => item.date);
+            const ohlc = stockData.data.map(item => ({
+                o: item.open,
+                h: item.high,
+                l: item.low,
+                c: item.close
+            }));
+            const volumes = stockData.data.map(item => item.volume);
+            
+            // 更新价格图表
+            updatePriceChart(dates, ohlc);
+            
+            // 更新成交量图表
+            updateVolumeChart(dates, volumes, stockData.data.map(item => item.close));
+        }
+        
+        // 更新价格图表
+        function updatePriceChart(dates, ohlc) {
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            
+            // 销毁现有图表
+            if (priceChart) {
+                priceChart.destroy();
+            }
+            
+            // 计算移动平均线
+            const shortPeriod = parseInt(document.getElementById('shortPeriod').value);
+            const longPeriod = parseInt(document.getElementById('longPeriod').value);
+            const closePrices = ohlc.map(item => item.c);
+            const shortMA = calculateMA(closePrices, shortPeriod);
+            const longMA = calculateMA(closePrices, longPeriod);
+            
+            // 为移动平均线数据添加null检查，确保与价格数据长度一致
+            const adjustedShortMA = shortMA.slice();
+            const adjustedLongMA = longMA.slice();
+            
+            // 确保移动平均线数据长度与价格数据一致
+            while (adjustedShortMA.length < ohlc.length) {
+                adjustedShortMA.push(null);
+            }
+            while (adjustedLongMA.length < ohlc.length) {
+                adjustedLongMA.push(null);
+            }
+            
+            // 准备图表配置
+            const config = {
+                type: currentChartType === 'line' ? 'line' : 'candlestick',
+                data: {
+                    labels: dates, // 添加labels数组
+                    datasets: [
+                        {
+                            label: '价格',
+                            data: currentChartType === 'line' 
+                                ? closePrices
+                                : ohlc,
+                            borderColor: currentChartType === 'line' ? '#1a56db' : undefined,
+                            color: {
+                                up: '#10b981',
+                                down: '#ef4444',
+                                unchanged: '#6b7280'
+                            },
+                            borderWidth: 1
+                        },
+                        {
+                            label: `${shortPeriod}日均线`,
+                            data: adjustedShortMA,
+                            type: 'line',
+                            borderColor: '#f59e0b',
+                            borderWidth: 1.5,
+                            pointRadius: 0,
+                            fill: false,
+                            spanGaps: true, // 允许跳过null值
+                            segment: {
+                                borderColor: ctx => {
+                                    // 更全面的null检查
+                                    if (!ctx || ctx.p1DataIndex === null || ctx.p1DataIndex === undefined) return 'transparent';
+                                    const value = adjustedShortMA[ctx.p1DataIndex];
+                                    return value !== null ? '#f59e0b' : 'transparent';
+                                }
+                            }
+                        },
+                        {
+                            label: `${longPeriod}日均线`,
+                            data: adjustedLongMA,
+                            type: 'line',
+                            borderColor: '#ef4444',
+                            borderWidth: 1.5,
+                            pointRadius: 0,
+                            fill: false,
+                            spanGaps: true, // 允许跳过null值
+                            segment: {
+                                borderColor: ctx => {
+                                    // 更全面的null检查
+                                    if (!ctx || ctx.p1DataIndex === null || ctx.p1DataIndex === undefined) return 'transparent';
+                                    const value = adjustedLongMA[ctx.p1DataIndex];
+                                    return value !== null ? '#ef4444' : 'transparent';
+                                }
+                            }
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    if (currentChartType === 'line') {
+                                        return `价格: ${formatPrice(context.parsed.y)}`;
+                                    } else {
+                                        const dataIndex = context.dataIndex;
+                                        const data = context.dataset.data[dataIndex];
+                                        return [
+                                            `开盘: ${formatPrice(data.o)}`,
+                                            `最高: ${formatPrice(data.h)}`,
+                                            `最低: ${formatPrice(data.l)}`,
+                                            `收盘: ${formatPrice(data.c)}`
+                                        ];
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'category',
+                            labels: dates || [],
+                            ticks: {
+                                maxRotation: 0,
+                                autoSkip: true,
+                                maxTicksLimit: 10
+                            },
+                            grid: {
+                                display: false
+                            }
+                        },
+                        y: {
+                            position: 'right',
+                            ticks: {
+                                callback: function(value) {
+                                    return value !== null && value !== undefined ? formatPrice(value) : '';
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+            
+            // 如果有回测结果，添加买卖点标记
+            if (backtestResults && backtestResults.trades && backtestResults.trades.length > 0) {
+                const buyPoints = [];
+                const sellPoints = [];
+                
+                backtestResults.trades.forEach(trade => {
+                    // 确保交易对象不为null，并且包含必要的属性
+                    if (trade && trade.date && trade.type && trade.price !== undefined) {
+                        const dateIndex = dates.indexOf(trade.date);
+                        if (dateIndex !== -1) {
+                            if (trade.type === 'buy') {
+                                buyPoints.push({
+                                    x: dateIndex,
+                                    y: trade.price
+                                });
+                            } else if (trade.type === 'sell') {
+                                sellPoints.push({
+                                    x: dateIndex,
+                                    y: trade.price
+                                });
+                            }
+                        }
+                    }
+                });
+                
+                // 只在有买卖点时添加标记
+                if (buyPoints.length > 0) {
+                    config.data.datasets.push({
+                        label: '买入点',
+                        data: buyPoints,
+                        type: 'scatter',
+                        backgroundColor: '#10b981',
+                        borderColor: '#10b981',
+                        pointStyle: 'arrow',
+                        pointRadius: 8,
+                        pointRotation: 270
+                    });
+                }
+                
+                if (sellPoints.length > 0) {
+                    config.data.datasets.push({
+                        label: '卖出点',
+                        data: sellPoints,
+                        type: 'scatter',
+                        backgroundColor: '#ef4444',
+                        borderColor: '#ef4444',
+                        pointStyle: 'arrow',
+                        pointRadius: 8,
+                        pointRotation: 90
+                    });
+                }
+            }
+            
+            // 创建图表
+            priceChart = new Chart(ctx, config);
+        }
+        
+        // 更新成交量图表
+        function updateVolumeChart(dates, volumes, prices) {
+            const ctx = document.getElementById('volumeChart').getContext('2d');
+            
+            // 销毁现有图表
+            if (volumeChart) {
+                volumeChart.destroy();
+            }
+            
+            // 准备颜色数组（根据价格涨跌）
+            const colors = [];
+            for (let i = 1; i < prices.length; i++) {
+                colors.push(prices[i] !== null && prices[i-1] !== null && prices[i] >= prices[i-1] ? '#10b981' : '#ef4444');
+            }
+            // 第一个数据点默认上涨颜色
+            colors.unshift('#10b981');
+            
+            // 创建图表
+            volumeChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: dates || [],
+                    datasets: [{
+                        label: '成交量',
+                        data: volumes || [],
+                        backgroundColor: colors,
+                        borderColor: colors,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `成交量: ${formatVolume(context.parsed.y)}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'category',
+                            ticks: {
+                                maxRotation: 0,
+                                autoSkip: true,
+                                maxTicksLimit: 10
+                            }
+                        },
+                        y: {
+                            position: 'right',
+                            ticks: {
+                                callback: function(value) {
+                                    return value !== null && value !== undefined ? formatVolume(value) : '';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 运行回测
+        function runBacktest() {
+            if (!stockData) {
+                showError('请先获取股票数据');
+                return;
+            }
+            
+            showLoading('正在运行回测，请稍候...');
+            hideError();
+            
+            const symbol = document.getElementById('stockSymbol').value.trim();
+            const strategy = document.getElementById('strategySelect').value;
+            const initialCash = parseFloat(document.getElementById('initialCash').value);
+            const commission = parseFloat(document.getElementById('commission').value);
+            
+            // 获取策略参数
+            let params = {};
+            if (strategy === 'ma_cross') {
+                params = {
+                    short_period: parseInt(document.getElementById('shortPeriod').value),
+                    long_period: parseInt(document.getElementById('longPeriod').value)
+                };
+            } else if (strategy === 'rsi') {
+                params = {
+                    period: parseInt(document.getElementById('rsiPeriod').value),
+                    overbought: parseInt(document.getElementById('rsiOverbought').value),
+                    oversold: parseInt(document.getElementById('rsiOversold').value)
+                };
+            } else if (strategy === 'macd') {
+                params = {
+                    fast_period: parseInt(document.getElementById('macdFastPeriod').value),
+                    slow_period: parseInt(document.getElementById('macdSlowPeriod').value),
+                    signal_period: parseInt(document.getElementById('macdSignalPeriod').value)
+                };
+            }
+            
+            // 构建请求数据
+            const requestData = {
+                symbol: symbol,
+                strategy: strategy,
+                params: params,
+                initial_cash: initialCash,
+                commission: commission
+            };
+            
+            // 发送API请求
+            fetch('/api/backtest', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`API请求失败: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                backtestResults = data;
+                updateBacktestResults();
+                
+                // 更新价格图表以显示买卖点
+                updateCharts();
+                
+                // 显示回测结果区域
+                document.getElementById('backtestResults').classList.remove('hidden');
+                
+                hideLoading();
+            })
+            .catch(error => {
+                console.error('回测失败:', error);
+                showError(`回测失败: ${error.message}`);
+                hideLoading();
+            });
+        }
+        
+        // 更新回测结果
+        function updateBacktestResults() {
+            if (!backtestResults) return;
+            
+            // 更新回测指标
+            document.getElementById('totalReturn').textContent = formatPercentage(backtestResults.metrics.total_return);
+            document.getElementById('annualReturn').textContent = formatPercentage(backtestResults.metrics.annual_return);
+            document.getElementById('maxDrawdown').textContent = formatPercentage(backtestResults.metrics.max_drawdown);
+            document.getElementById('sharpeRatio').textContent = backtestResults.metrics.sharpe_ratio.toFixed(2);
+            
+            // 更新交易统计
+            document.getElementById('totalTrades').textContent = backtestResults.metrics.total_trades;
+            document.getElementById('winRate').textContent = formatPercentage(backtestResults.metrics.win_rate);
+            document.getElementById('avgProfit').textContent = formatPercentage(backtestResults.metrics.avg_profit);
+            document.getElementById('avgLoss').textContent = formatPercentage(backtestResults.metrics.avg_loss);
+            document.getElementById('profitLossRatio').textContent = backtestResults.metrics.profit_loss_ratio.toFixed(2);
+            document.getElementById('maxConsecutiveWins').textContent = backtestResults.metrics.max_consecutive_wins;
+            
+            // 更新收益率曲线
+            updateEquityCurveChart();
+            
+            // 更新交易记录表格
+            updateTradesTable();
+        }
+        
+        // 更新收益率曲线图表
+        function updateEquityCurveChart() {
+            if (!backtestResults || !backtestResults.equity_curve) return;
+            
+            const ctx = document.getElementById('equityCurveChart').getContext('2d');
+            
+            // 销毁现有图表
+            if (equityCurveChart) {
+                equityCurveChart.destroy();
+            }
+            
+            const dates = backtestResults.equity_curve.map(item => item.date);
+            const equity = backtestResults.equity_curve.map(item => item.equity);
+            
+            // 创建图表
+            equityCurveChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [{
+                        label: '账户价值',
+                        data: equity,
+                        borderColor: '#1a56db',
+                        backgroundColor: 'rgba(26, 86, 219, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `账户价值: ${formatPrice(context.parsed.y)}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'category',
+                            ticks: {
+                                maxRotation: 0,
+                                autoSkip: true,
+                                maxTicksLimit: 8
+                            }
+                        },
+                        y: {
+                            position: 'right',
+                            ticks: {
+                                callback: function(value) {
+                                    return formatPrice(value);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 更新交易记录表格
+        function updateTradesTable() {
+            if (!backtestResults || !backtestResults.trades) return;
+            
+            const tableBody = document.getElementById('tradesTableBody');
+            tableBody.innerHTML = '';
+            
+            backtestResults.trades.forEach(trade => {
+                const row = document.createElement('tr');
+                
+                // 日期
+                const dateCell = document.createElement('td');
+                dateCell.className = 'px-4 py-3 whitespace-nowrap';
+                dateCell.textContent = trade.date;
+                row.appendChild(dateCell);
+                
+                // 类型
+                const typeCell = document.createElement('td');
+                typeCell.className = 'px-4 py-3 whitespace-nowrap';
+                const typeSpan = document.createElement('span');
+                typeSpan.className = trade.type === 'buy' 
+                    ? 'px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800'
+                    : 'px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800';
+                typeSpan.textContent = trade.type === 'buy' ? '买入' : '卖出';
+                typeCell.appendChild(typeSpan);
+                row.appendChild(typeCell);
+                
+                // 价格
+                const priceCell = document.createElement('td');
+                priceCell.className = 'px-4 py-3 whitespace-nowrap';
+                priceCell.textContent = formatPrice(trade.price);
+                row.appendChild(priceCell);
+                
+                // 数量
+                const quantityCell = document.createElement('td');
+                quantityCell.className = 'px-4 py-3 whitespace-nowrap';
+                quantityCell.textContent = trade.quantity.toFixed(2);
+                row.appendChild(quantityCell);
+                
+                // 金额
+                const amountCell = document.createElement('td');
+                amountCell.className = 'px-4 py-3 whitespace-nowrap';
+                amountCell.textContent = formatPrice(trade.amount);
+                row.appendChild(amountCell);
+                
+                // 手续费
+                const feeCell = document.createElement('td');
+                feeCell.className = 'px-4 py-3 whitespace-nowrap';
+                feeCell.textContent = formatPrice(trade.fee);
+                row.appendChild(feeCell);
+                
+                tableBody.appendChild(row);
+            });
+        }
+        
+        // 导出回测结果
+        function exportResults() {
+            if (!backtestResults) return;
+            
+            // 创建导出数据对象
+            const exportData = {
+                stock: document.getElementById('stockSymbol').value.trim(),
+                strategy: document.getElementById('strategySelect').options[document.getElementById('strategySelect').selectedIndex].text,
+                period: `${document.getElementById('startDate').value} 至 ${document.getElementById('endDate').value}`,
+                initialCash: document.getElementById('initialCash').value,
+                commission: document.getElementById('commission').value,
+                metrics: backtestResults.metrics,
+                trades: backtestResults.trades,
+                equityCurve: backtestResults.equity_curve
+            };
+            
+            // 转换为CSV格式
+            let csvContent = "日期,账户价值\n";
+            backtestResults.equity_curve.forEach(item => {
+                csvContent += `${item.date},${item.equity}\n`;
+            });
+            
+            // 创建下载链接
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `backtest_results_${document.getElementById('stockSymbol').value.trim()}_${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+        
+        // 计算移动平均线
+        function calculateMA(data, period) {
+            const result = [];
+            
+            // 前period-1个数据点填充null
+            for (let i = 0; i < period - 1; i++) {
+                result.push(null);
+            }
+            
+            // 计算移动平均
+            for (let i = period - 1; i < data.length; i++) {
+                let sum = 0;
+                let validCount = 0;
+                for (let j = 0; j < period; j++) {
+                    const value = data[i - j];
+                    if (value !== null && !isNaN(value)) {
+                        sum += value;
+                        validCount++;
+                    }
+                }
+                // 只有当有足够的有效值时才计算平均值
+                result.push(validCount > 0 ? sum / validCount : null);
+            }
+            
+            return result;
+        }
+        
+        // 格式化价格
+        function formatPrice(price) {
+            if (price === null || price === undefined) return '-';
+            
+            // 如果价格大于1000，使用千位分隔符
+            if (price >= 1000) {
+                return price.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+            }
+            
+            // 否则保留2位小数
+            return price.toFixed(2);
+        }
+        
+        // 格式化成交量
+        function formatVolume(volume) {
+            if (volume === null || volume === undefined) return '-';
+            
+            if (volume >= 1000000000) {
+                return (volume / 1000000000).toFixed(2) + 'B';
+            } else if (volume >= 1000000) {
+                return (volume / 1000000).toFixed(2) + 'M';
+            } else if (volume >= 1000) {
+                return (volume / 1000).toFixed(2) + 'K';
+            }
+            
+            return volume.toString();
+        }
+        
+        // 格式化百分比
+        function formatPercentage(value) {
+            if (value === null || value === undefined) return '-';
+            
+            const sign = value >= 0 ? '+' : '';
+            return `${sign}${(value * 100).toFixed(2)}%`;
+        }
+        
+        // 显示加载状态
+        function showLoading(text) {
+            document.getElementById('loadingText').textContent = text || '加载中...';
+            document.getElementById('loadingIndicator').classList.remove('hidden');
+        }
+        
+        // 隐藏加载状态
+        function hideLoading() {
+            document.getElementById('loadingIndicator').classList.add('hidden');
+        }
+        
+        // 显示错误信息
+        function showError(message) {
+            document.getElementById('errorText').textContent = message;
+            document.getElementById('errorMessage').classList.remove('hidden');
+        }
+        
+        // 隐藏错误信息
+        function hideError() {
+            document.getElementById('errorMessage').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
